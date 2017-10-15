@@ -98,6 +98,7 @@ public class RSA {
             if(!hasNext()) throw new IllegalStateException("No more bits");
             int result = 0;
             int current = bytes[i] & 0xFF;
+            if(isLast() && n > available) n = available;
             if(n <= available) {
                 result = current << (32 - available) >>> (32 - n);
                 available -= n;
@@ -109,8 +110,15 @@ public class RSA {
                     result |= (bytes[i] & 0xFF) >>> (8-left);
                 available = 8 - left;
             }
-            if(available == 0) i++;
+            if(available == 0) {
+                i++;
+                available = 8;
+            }
             return result;
+        }
+
+        private boolean isLast() {
+            return i == bytes.length-1;
         }
 
         private int i = 0;
@@ -124,6 +132,7 @@ public class RSA {
             this.segBitLength = segBitLength;
             this.segByteNum = segBitLength / 8;
             this.segExtraBits = segBitLength - segByteNum * 8;
+            this.segNum = bytes.length * 8 / segBitLength;
             this.i = 0;
             this.shift = 0;
             this.bitIterator = new BitIterator(this.bytes);
@@ -141,22 +150,29 @@ public class RSA {
 
         @Override
         public byte[] next() {
-            byte[] segment = new byte[segByteNum + 1];
-            segment[0] = (byte)bitIterator.next(segExtraBits);
-            int j = 1;
-            shift = (shift + segExtraBits) % 8;
-            for (; j < segByteNum+1; j++)
-                if(bitIterator.hasNext()) segment[j] = (byte) bitIterator.next(8);
-                else break;
-            if(isLast()) {
-                segment = Arrays.copyOfRange(segment, 0, j);
+            byte[] segment = null;
+            if(!isLast()) {
+                segment = new byte[segByteNum + 1];
+                segment[0] = (byte)bitIterator.next(segExtraBits);
+                int j = 1;
+                shift = (shift + segExtraBits) % 8;
+                for (; j < segByteNum+1; j++)
+                    if(bitIterator.hasNext()) segment[j] = (byte) bitIterator.next(8);
+                    else break;
             }
+            else {
+                segment = new byte[segByteNum];
+                for (int j = 0; j < segByteNum; j++)
+                    if(bitIterator.hasNext()) segment[j] = (byte) bitIterator.next(8);
+                    else break;
+            }
+
             i++;
             return segment;
         }
 
         private boolean isLast() {
-            return i == bytes.length / segByteNum - 1;
+            return i == segNum;
         }
 
         private final byte[] bytes; //source of data
@@ -165,6 +181,7 @@ public class RSA {
         private final int segExtraBits; //number of bits of the last byte in a segment
         private int i; //index
         private int shift;
+        private final int segNum;
         private final BitIterator bitIterator;
     }
 
@@ -195,6 +212,7 @@ public class RSA {
             int available = 8;
             while(available != 0) {
                 int current = bytes[i] & 0xFF;
+
                 if(i % (segByteNum+1) == 0) {
                     result |= current << (available - segExtraBits);
                     available -= segExtraBits;
@@ -216,6 +234,7 @@ public class RSA {
                         result |= offeredBits << available;
                     }
                 }
+
                 this.i++;
                 if(!hasNext()) return (byte)(result | bytes[i] << (24 + bitsTaken) >>> (24 + bitsTaken));
             }
