@@ -3,8 +3,10 @@
  */
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
-import java.util.BitSet;
 
 import static org.junit.Assert.*;
 
@@ -14,10 +16,14 @@ public class RSATest {
     };
 
     @Test public void test() {
-        byte[] bytes = new byte[]{(byte)0b11101110, (byte)0b10000001};
+        byte[] bytes = new byte[]{(byte)0b01101110, (byte)0b10000000};
         BigInteger i = new BigInteger(bytes);
-        RSA rsa = new RSA(BigInteger.valueOf(1261), BigInteger.valueOf(7753));
-        BigInteger result = i.negate().modPow(rsa.getE(), rsa.getN()).modPow(BigInteger.valueOf(591971), rsa.getN()).negate();
+        BigInteger n = BigInteger.valueOf(629);
+        BigInteger e = BigInteger.valueOf(5);
+        BigInteger d = BigInteger.valueOf(29);
+        i = i.shiftRight(16-10);
+        BigInteger result = i.modPow(e, n).modPow(d, n);
+        result = result.shiftLeft(16-10);
         assertArrayEquals(bytes, result.toByteArray());
     }
 
@@ -27,27 +33,38 @@ public class RSATest {
         assertEquals(i, i.modPow(rsa.getE(), rsa.getN()).modPow(BigInteger.valueOf(591971), rsa.getN()));
     }
 
-    @Test public void segmentationTest() {
-        RSA.Segmentator segmentator = new RSA.Segmentator(bytes, 9);
-        byte[][] correct = new byte[][]{
-                new byte[]{(byte)0b01101110, (byte)0},
-                new byte[]{(byte)0b10001011, (byte)0b10000000},
-                new byte[]{(byte)0b01100010, (byte)0b10000000},
-                new byte[]{(byte)0b10101000, (byte)0}
+    @Test public void encryptTest() throws IOException {
+        byte[] crypto = new byte[] {
+                (byte)0b0, (byte)0b10000, (byte)0b1, (byte)0b11001,
+                (byte)0b0, (byte)0b11011001, (byte) 0, (byte)0b1
         };
-        int i = 0;
-        for (byte[] b: segmentator)
-            assertArrayEquals(correct[i++], b);
+        RSA rsa = new RSA(BigInteger.valueOf(37), BigInteger.valueOf(17));
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        RSA.encrypt(in, out, rsa.getE(), rsa.getN());
+        assertArrayEquals(crypto, out.toByteArray());
     }
 
-    @Test public void desegmentationTest() {
-        byte[] bytes = new byte[] {
-                (byte)0b01101110, (byte)0b0, (byte)0b10001011, (byte)0b10000000,
-                (byte)0b01100010, (byte)0b0, (byte)0b10101000, (byte)0b0
+    @Test public void decryptTest() throws IOException {
+        byte[] crypto = new byte[] {
+                (byte)0b0, (byte)0b10000, (byte)0b1, (byte)0b11001,
+                (byte)0b0, (byte)0b11011001, (byte) 0, (byte)0b1
         };
-        RSA.Desegmentator desegmentator = new RSA.Desegmentator(bytes, 9);
-        int i = 0;
-        for(byte b : desegmentator)
-            assertEquals(0, b&(~this.bytes[i++]));
+        RSA rsa = new RSA(BigInteger.valueOf(37), BigInteger.valueOf(17));
+        ByteArrayInputStream in = new ByteArrayInputStream(crypto);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        rsa.decrypt(in, out);
+        assertArrayEquals(bytes, out.toByteArray());
+    }
+
+    @Test public void decryptEncrypt() throws IOException {
+        RSA rsa = new RSA(BigInteger.valueOf(37), BigInteger.valueOf(17));
+        ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream out2 = new ByteArrayOutputStream();
+        RSA.encrypt(in, out, rsa.getE(), rsa.getN());
+
+        rsa.decrypt(new ByteArrayInputStream(out.toByteArray()), out2);
+        assertArrayEquals(bytes, out2.toByteArray());
     }
 }
