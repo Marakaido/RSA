@@ -20,7 +20,6 @@ public class RSA {
     public BigInteger getN() { return this.n; }
     public BigInteger getE() { return this.e; }
 
-
     public static void encrypt(InputStream in, OutputStream out, BigInteger e, BigInteger n) throws IOException {
         int segBitNum = (int)(Math.log(n.doubleValue()) / Math.log(2));
         int segByteNum = segBitNum / 8 + 1;
